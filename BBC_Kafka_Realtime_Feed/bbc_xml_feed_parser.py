@@ -7,7 +7,7 @@ Created on Sat Dec  5 14:40:37 2020
 """
 from bs4 import BeautifulSoup
 import requests
-
+import pandas as pd
 
 class BBCParser():
     """
@@ -17,9 +17,7 @@ class BBCParser():
     def __init__(self):
         self.bbc_url = "http://feeds.bbci.co.uk/news/world/rss.xml"
         self.response = None
-        self.curr_top_news = None
-        self.status = 404
-        self.parsedItems=[]
+        self.status = 404  
         self.items=[]
         
     def getResponse(self):
@@ -62,13 +60,38 @@ class BBCParser():
             Top item from the parsed XML Feed
 
         """
-        
+        parsedItems=[]
         for item in items:
             item_dict = {}
             item_dict['title'] = item.title.text
             item_dict['link'] = item.link.text
             item_dict['createdOn'] = item.pubDate.text
-            self.parsedItems.append(item_dict)
-        self.curr_top_news = self.parsedItems[0]['title']
-        return self.parsedItems,self.curr_top_news
+            parsedItems.append(item_dict)    
+        return parsedItems
+    
+    def newsOrganiser(self, parser_output):
+        """
+        Function to reorder dataframe based on timestamp
+
+        Parameters
+        ----------
+        parser_output : Dataframe
+            Pandas df output from responseParser method.
+
+        Returns
+        -------
+        final_news_dict : List of dicts
+            Dictionary of reordered records.
+        top_news : string
+            Top element from title field.
+
+        """
+        news_df = pd.DataFrame(parser_output)
+        news_df['TS'] = news_df['createdOn'].apply(lambda x:pd.Timestamp(x))
+        news_df['PublishDateTime'] = pd.to_datetime(news_df['TS'], format='%Y-%m-%d %H:%M:%S-%Z',errors='coerce').astype(str)
+        news_df = news_df.sort_values('PublishDateTime', ascending=False, ignore_index=True)
+        final_news_df = news_df.drop(['createdOn','TS'], axis=1)
+        top_news = final_news_df['title'].iloc[0]
+        final_news_dict = final_news_df.to_dict(orient='records')
+        return final_news_dict, top_news
 
